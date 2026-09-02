@@ -1,0 +1,53 @@
+# ===== Maven / Java =====
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+*.log
+
+# Arquivos de metadata do Maven (não versionar o wrapper jar)
+.mvn/wrapper/maven-wrapper.jar
+
+# ===== Eclipse / STS =====
+.classpath
+.project
+.settings/
+.target/
+*.launch
+.apt_generated
+.factorypath
+.springBeans
+.sts4-cache
+
+# ===== IntelliJ IDEA =====
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+.idea_modules/
+
+# ===== NetBeans =====
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# ===== VS Code =====
+.vscode/
+!.vscode/NEWLY_CREATED_BY_SPRING_INITIALIZR
+
+# ===== Sistema operacional =====
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ===== Logs / temporários =====
+*.log
+*.tmp
+*.swp
+*~
