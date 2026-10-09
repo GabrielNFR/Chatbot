@@ -27,6 +27,23 @@ services:
       db:
         condition: service_healthy
 
+  app:
+    build: .
+    container_name: chatbot-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: chatbot
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:4173
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   postgres_data:
     driver: local
