@@ -1,4 +1,32 @@
+# Saida de build
 target/
+
+# Controle de versao (nao entra no contexto de build)
 .git/
-HELP.md
+.gitattributes
 .gitignore
+.github/
+
+# IDE / editor
+.vscode/
+.idea/
+*.iml
+*.iws
+
+# Documentacao (nao e necessaria para buildar a imagem)
+docs/
+*.md
+HELP.md
+
+# Arquivos de orquestracao (nao sao usados dentro da imagem)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Logs e temporarios
+*.log
+*.tmp
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

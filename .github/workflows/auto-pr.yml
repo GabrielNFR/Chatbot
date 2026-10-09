@@ -1,0 +1,41 @@
+name: Abrir PR
+
+# Ao dar push em qualquer branch que nao seja a main, abre uma PR para a main.
+# A PR dispara o workflow "CI"; se passar, o job "Merge na main" faz o merge,
+# e o merge na main e o que dispara o deploy na AWS.
+on:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  abrir-pr:
+    name: Abrir PR para a main
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Criar PR se ainda nao existir
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          existentes=$(gh pr list --head "$BRANCH" --state open --json number --jq 'length')
+          if [ "$existentes" -gt 0 ]; then
+            echo "Ja existe PR aberta para a branch $BRANCH. Nada a fazer."
+            exit 0
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "$(git log -1 --pretty=%s)" \
+            --body "PR criada automaticamente pelo workflow **Abrir PR**.
+
+          Ultimo commit: \`$(git log -1 --pretty=%h)\`"
