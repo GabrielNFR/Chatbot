@@ -21,6 +21,7 @@ public class CorsProperties {
 
     /** Origens autorizadas. Aceita curingas, ex.: {@code https://*.dominio.com}. */
     private List<String> allowedOrigins = List.of(
+            "http://localhost:3000",  // pnpm dev (frontend atual)
             "http://localhost:5173",  // Vite dev server
             "http://localhost:4173"   // Vite preview
     );

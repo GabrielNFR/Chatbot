@@ -38,6 +38,17 @@ class CorsConfigTest {
     }
 
     @Test
+    @DisplayName("Preflight da origem do pnpm dev (:3000) deve ser permitido")
+    void preflightDaOrigemDoPnpmDevDeveSerPermitido() throws Exception {
+        String origem = "http://localhost:3000";
+        mockMvc.perform(options("/api/messages")
+                        .header("Origin", origem)
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", origem));
+    }
+
+    @Test
     @DisplayName("Origem não permitida deve ser rejeitada sem header de CORS")
     void preflightDeOrigemNaoPermitidaDeveSerRejeitado() throws Exception {
         mockMvc.perform(options("/api/messages")
