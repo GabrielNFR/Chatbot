@@ -2,9 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -56,27 +53,46 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  merge:
+  publicar:
     name: Merge na main
     runs-on: ubuntu-latest
     needs: [test, docker]
-    # Só faz merge quando o evento é uma PR (não em push direto na main).
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    if: github.ref_name != 'main'
     permissions:
       contents: write
       pull-requests: write
     steps:
-      - name: Fazer merge da PR (dispara o deploy)
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Abrir PR e fazer merge (dispara o deploy)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
         run: |
-          gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --delete-branch
+          gh pr create --repo "$REPO" --base main --head "$BRANCH" \
+            --title "$(git log -1 --pretty=%s)" \
+            --body "Merge automatico apos CI verde." 2>/dev/null || echo "PR ja existente."
+
+          mergeado=false
+          for tentativa in 1 2 3 4 5 6; do
+            if gh pr merge "$BRANCH" --repo "$REPO" --squash --delete-branch; then
+              mergeado=true
+              break
+            fi
+            echo "Tentativa $tentativa nao concluiu; aguardando 5s..."
+            sleep 5
+          done
+
+          if [ "$mergeado" != "true" ]; then
+            echo "Nao foi possivel mergear a PR."
+            exit 1
+          fi
 
           for branch in $(gh api "repos/$REPO/branches?per_page=100" --jq '.[].name'); do
-            if [ "$branch" = "main" ] || [ "$branch" = "$HEAD_BRANCH" ]; then
+            if [ "$branch" = "main" ] || [ "$branch" = "$BRANCH" ]; then
               continue
             fi
 
