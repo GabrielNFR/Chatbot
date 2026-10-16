@@ -10,7 +10,7 @@ Aplicação backend **Spring Boot**, construída com Java 21 e Maven. Persistên
 |---|---|---|---|
 | Linguagem | Java (JDK) | 21 | Runtime da aplicação |
 | Framework | Spring Boot | 4.1.1 | Base da aplicação / autoconfiguração |
-| Build | Maven (com Wrapper `mvnw`) | 3.3.4 | Build e gerenciamento de dependências |
+| Build | Maven (com Wrapper `mvnw`) | 3.9.16 | Build e gerenciamento de dependências |
 | Web | Spring Web MVC | starter `spring-boot-starter-webmvc` | API REST (controllers, HTTP) |
 | Persistência | Spring Data JPA | starter `spring-boot-starter-data-jpa` | Camada de acesso a dados / repositórios |
 | ORM | Hibernate ORM | 7.4.5.Final* | Mapeamento objeto-relacional |
@@ -50,12 +50,16 @@ src/main/java/com/example/chatbot/
 │   ├── CorsConfig.java               # CORS para o frontend
 │   └── CorsProperties.java           # Propriedades app.cors.*
 └── model/
-    ├── Cliente.java                  # Raiz do agregado de conversas
-    ├── Conversa.java                 # Sessão de atendimento (agregado)
+    ├── Cliente.java                  # Cliente e suas conversas
+    ├── Atendente.java                # Atendente e seus atendimentos
+    ├── Chatbot.java                  # Chatbot que inicia conversas
+    ├── Conversa.java                 # Sessão de conversa
     ├── Mensagem.java                 # Mensagem (imutável)
+    ├── Atendimento.java              # Atendimento humano de uma conversa
     └── enums/
         ├── RemetenteMensagem.java
-        └── StatusConversa.java
+        ├── StatusConversa.java
+        └── StatusAtendimento.java
 
 src/main/resources/
 ├── application.properties            # Configuração padrão (PostgreSQL, CORS)
@@ -64,7 +68,8 @@ src/main/resources/
 
 src/test/java/com/example/chatbot/
 ├── ChatbotApplicationTests.java
-└── config/CorsConfigTest.java        # Testes de preflight de CORS
+├── config/CorsConfigTest.java        # Testes de preflight de CORS
+└── model/AtendimentoTest.java        # Testes dos fluxos de chatbot e atendimento
 
 scripts/git-limpar.ps1                # Limpeza de branches locais já mergeadas
 Dockerfile                            # Build multi-stage da imagem
@@ -76,7 +81,28 @@ pom.xml / mvnw / mvnw.cmd             # Build Maven
 
 ## Como executar
 
-Pré-requisito: **JDK 21+** configurado no ambiente.
+Pré-requisito: **JDK 21** configurado no ambiente. O Maven Wrapper usa o JDK definido em `JAVA_HOME` e baixa o Maven 3.9.16 definido em `.mvn/wrapper/maven-wrapper.properties`; não é necessário instalar Maven globalmente.
+
+No Windows, configure `JAVA_HOME` para a pasta do JDK 21 e inclua `%JAVA_HOME%\bin` no `PATH`. Para configurar o JDK instalado no perfil do usuário, execute no PowerShell, substituindo o caminho pela pasta onde o JDK 21 está instalado:
+
+```powershell
+$jdkHome = "C:\caminho\para\jdk-21"
+[Environment]::SetEnvironmentVariable("JAVA_HOME", $jdkHome, "User")
+$jdkBin = Join-Path $jdkHome "bin"
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if (($userPath -split ";") -notcontains $jdkBin) {
+    [Environment]::SetEnvironmentVariable("Path", "$userPath;$jdkBin", "User")
+}
+```
+
+Feche e reabra o terminal e confirme o JDK de `JAVA_HOME` e a versão do Maven Wrapper:
+
+```powershell
+& "$env:JAVA_HOME\bin\java.exe" -version
+.\mvnw.cmd -version
+```
+
+O Java selecionado por `JAVA_HOME` deve ser a versão 21 e o Maven Wrapper deve indicar Maven 3.9.16. Se `java -version` simples exibir outra instalação, confira a ordem dos JDKs no `PATH` do Windows.
 
 ```bash
 # Windows (PowerShell)
@@ -139,15 +165,21 @@ A conexão é configurável por variáveis de ambiente: `DB_HOST`, `DB_PORT`, `D
 classDiagram
     Cliente "1" --> "N" Conversa : possui
     Conversa "1" --> "N" Mensagem : contém
+    Chatbot "1" --> "N" Conversa : inicia
+    Conversa "1" --> "0..1" Atendimento : recebe
+    Atendente "1" --> "N" Atendimento : realiza
 ```
 
 | Entidade | Papel |
 |---|---|
-| `Cliente` | Usuária do atendimento; raiz do agregado. O CPF nunca é exposto por completo — apenas via `getCpfMascarado()` |
-| `Conversa` | Sessão de atendimento; controla o próprio ciclo de vida (`ATIVA`, `AGUARDANDO_ATENDIMENTO_HUMANO`, `EM_ATENDIMENTO_HUMANO`, `ENCERRADA`) e encerra por inatividade |
+| `Cliente` | Pessoa atendida e dona das conversas. O CPF nunca é exposto por completo — apenas via `getCpfMascarado()` |
+| `Chatbot` | Inicia conversas para clientes enquanto estiver ativo |
+| `Conversa` | Sessão do cliente; controla seu ciclo de vida e pode ser transferida para atendimento humano |
 | `Mensagem` | Imutável; criada apenas por `Conversa.registrarMensagem(...)` |
+| `Atendente` | Pessoa que assume conversas aguardando atendimento humano |
+| `Atendimento` | Vincula uma conversa a um atendente e controla resolução e encerramento |
 
-Os construtores de `Conversa` e `Mensagem` são de pacote e as coleções são expostas como listas imutáveis — o agregado controla a criação dos filhos, impedindo registros órfãos.
+Os construtores de `Conversa`, `Mensagem` e `Atendimento` são de pacote e as coleções são expostas como listas imutáveis. Os métodos de domínio mantêm os relacionamentos e impedem a abertura de atendimento para conversas que não aguardam um atendente.
 
 ---
 

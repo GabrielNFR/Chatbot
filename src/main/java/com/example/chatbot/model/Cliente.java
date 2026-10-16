@@ -90,7 +90,11 @@ public class Cliente {
     }
 
     public Conversa iniciarConversa(String canal) {
-        Conversa conversa = new Conversa(this, canal);
+        return iniciarConversa(null, canal);
+    }
+
+    public Conversa iniciarConversa(Chatbot chatbot, String canal) {
+        Conversa conversa = new Conversa(this, chatbot, canal);
         this.conversas.add(conversa);
         return conversa;
     }

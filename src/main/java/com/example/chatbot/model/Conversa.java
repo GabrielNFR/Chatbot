@@ -14,6 +14,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
@@ -37,6 +38,10 @@ public class Conversa {
     @JoinColumn(name = "cliente_id", nullable = false, updatable = false)
     private Cliente cliente;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chatbot_id", updatable = false)
+    private Chatbot chatbot;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private StatusConversa status;
@@ -56,10 +61,17 @@ public class Conversa {
     @OrderBy("enviadaEm ASC")
     private List<Mensagem> mensagens = new ArrayList<>();
 
+    @OneToOne(mappedBy = "conversa", fetch = FetchType.LAZY)
+    private Atendimento atendimento;
+
     protected Conversa() {
     }
 
     Conversa(Cliente cliente, String canal) {
+        this(cliente, null, canal);
+    }
+
+    Conversa(Cliente cliente, Chatbot chatbot, String canal) {
         if (cliente == null) {
             throw new IllegalArgumentException("A conversa precisa estar vinculada a um cliente.");
         }
@@ -67,6 +79,7 @@ public class Conversa {
             throw new IllegalArgumentException("O canal da conversa e obrigatorio.");
         }
         this.cliente = cliente;
+        this.chatbot = chatbot;
         this.canal = canal.trim().toUpperCase();
         this.status = StatusConversa.ATIVA;
         this.iniciadaEm = LocalDateTime.now();
@@ -95,10 +108,32 @@ public class Conversa {
         this.ultimaInteracaoEm = LocalDateTime.now();
     }
 
+    public Atendimento abrirAtendimento(Atendente atendente) {
+        if (status != StatusConversa.AGUARDANDO_ATENDIMENTO_HUMANO) {
+            throw new IllegalStateException("A conversa nao esta aguardando atendimento humano.");
+        }
+        if (atendimento != null) {
+            throw new IllegalStateException("A conversa ja possui um atendimento.");
+        }
+        if (atendente == null || !atendente.estaAtivo()) {
+            throw new IllegalArgumentException("O atendente deve estar ativo.");
+        }
+
+        Atendimento novoAtendimento = new Atendimento(this, atendente);
+        this.atendimento = novoAtendimento;
+        this.status = StatusConversa.EM_ATENDIMENTO_HUMANO;
+        this.ultimaInteracaoEm = LocalDateTime.now();
+        atendente.registrarAtendimento(novoAtendimento);
+        return novoAtendimento;
+    }
+
     public void encerrar() {
         exigirNaoEncerrada();
         this.status = StatusConversa.ENCERRADA;
         this.encerradaEm = LocalDateTime.now();
+        if (atendimento != null) {
+            atendimento.encerrarPorConversa();
+        }
     }
 
     public boolean encerrarSeInativa() {
@@ -142,6 +177,14 @@ public class Conversa {
 
     public Cliente getCliente() {
         return cliente;
+    }
+
+    public Chatbot getChatbot() {
+        return chatbot;
+    }
+
+    public Atendimento getAtendimento() {
+        return atendimento;
     }
 
     public StatusConversa getStatus() {
