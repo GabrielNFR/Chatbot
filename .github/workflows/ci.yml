@@ -70,5 +70,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
           REPO: ${{ github.repository }}
-        run: gh pr merge "$PR_NUMBER" --repo "$REPO" --squash
+        run: |
+          gh pr merge "$PR_NUMBER" --repo "$REPO" --squash --delete-branch
+
+          for branch in $(gh api "repos/$REPO/branches?per_page=100" --jq '.[].name'); do
+            if [ "$branch" = "main" ] || [ "$branch" = "$HEAD_BRANCH" ]; then
+              continue
+            fi
+
+            estado=$(gh pr list --repo "$REPO" --head "$branch" --state all \
+              --json state --jq '.[0].state // "SEM_PR"')
+
+            if [ "$estado" = "MERGED" ]; then
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null
+              echo "Branch remota removida: $branch"
+            fi
+          done
