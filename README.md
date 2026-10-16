@@ -1,6 +1,6 @@
 # Chatbot 
 
-Aplicação backend **Spring Boot**, construída com Java 21 e Maven. API REST em camadas (Controller → Service → Repository), persistência via JPA/Hibernate com banco **H2** em memória para desenvolvimento.
+Aplicação backend **Spring Boot**, construída com Java 21 e Maven. Persistência via JPA/Hibernate em banco **PostgreSQL**, com modelo de domínio rico (Cliente → Conversa → Mensagem) aplicando encapsulamento e relacionamentos.
 
 ---
 
@@ -14,8 +14,11 @@ Aplicação backend **Spring Boot**, construída com Java 21 e Maven. API REST e
 | Web | Spring Web MVC | starter `spring-boot-starter-webmvc` | API REST (controllers, HTTP) |
 | Persistência | Spring Data JPA | starter `spring-boot-starter-data-jpa` | Camada de acesso a dados / repositórios |
 | ORM | Hibernate ORM | 7.4.5.Final* | Mapeamento objeto-relacional |
-| Banco de dados | H2 | 2.4.240* | Banco em memória (desenvolvimento) |
-| Console BD | H2 Console | starter `spring-boot-h2console` | Interface web do H2 em `/h2-console` |
+| Banco de dados | PostgreSQL | 16 | Banco da aplicação (runtime) |
+| Banco de dados (testes) | H2 | 2.4.240* | Banco em memória, escopo `test` |
+| Console do banco | Adminer | latest | Interface web em `http://localhost:8081` |
+| Health check | Spring Boot Actuator | starter `spring-boot-starter-actuator` | `/actuator/health` para o load balancer |
+| Container | Docker + Docker Compose | — | Build da imagem e stack local completa |
 | Validação | Bean Validation | starter `spring-boot-starter-validation` | Validação de DTOs/entidades (`@Valid`, `@NotBlank`…) |
 | Redução de código | Lombok | (plugin) | Getters/setters/construtores automáticos |
 | Dev | Spring Boot DevTools | starter `spring-boot-devtools` | Auto-restart / hot reload em desenvolvimento |
@@ -29,9 +32,10 @@ Aplicação backend **Spring Boot**, construída com Java 21 e Maven. API REST e
 - `spring-boot-starter-webmvc` — API REST
 - `spring-boot-starter-data-jpa` — JPA + Hibernate
 - `spring-boot-starter-validation` — Bean Validation
-- `spring-boot-h2console` — H2 Console
+- `spring-boot-starter-actuator` — health check
 - `spring-boot-devtools` — hot reload (runtime, opcional)
-- `com.h2database:h2` — banco em memória (runtime)
+- `org.postgresql:postgresql` — driver do banco (runtime)
+- `com.h2database:h2` — banco em memória (escopo `test`)
 - `org.projectlombok:lombok` — código boilerplate
 - `*-test` starters — testes (JUnit + Spring Test)
 
@@ -41,12 +45,31 @@ Aplicação backend **Spring Boot**, construída com Java 21 e Maven. API REST e
 
 ```
 src/main/java/com/example/chatbot/
-├── ChatbotApplication.java      # Classe principal (@SpringBootApplication)
+├── ChatbotApplication.java           # Classe principal (@SpringBootApplication)
+├── config/
+│   ├── CorsConfig.java               # CORS para o frontend
+│   └── CorsProperties.java           # Propriedades app.cors.*
+└── model/
+    ├── Cliente.java                  # Raiz do agregado de conversas
+    ├── Conversa.java                 # Sessão de atendimento (agregado)
+    ├── Mensagem.java                 # Mensagem (imutável)
+    └── enums/
+        ├── RemetenteMensagem.java
+        └── StatusConversa.java
+
 src/main/resources/
-└── application.properties       # Configurações (spring.application.name=chatbot)
-src/test/java/...                # Testes automatizados
-pom.xml                          # Build Maven / dependências
-mvnw / mvnw.cmd                  # Maven Wrapper
+├── application.properties            # Configuração padrão (PostgreSQL, CORS)
+├── application-prod.properties       # Perfil de produção
+└── static/index.html                 # Página inicial
+
+src/test/java/com/example/chatbot/
+├── ChatbotApplicationTests.java
+└── config/CorsConfigTest.java        # Testes de preflight de CORS
+
+scripts/git-limpar.ps1                # Limpeza de branches locais já mergeadas
+Dockerfile                            # Build multi-stage da imagem
+docker-compose.yml                    # PostgreSQL + Adminer + aplicação
+pom.xml / mvnw / mvnw.cmd             # Build Maven
 ```
 
 ---
@@ -69,6 +92,20 @@ A aplicação sobe em **http://localhost:8080** (Tomcat, porta 8080).
 
 ---
 
+## Docker
+
+A imagem é construída em dois estágios — build com Maven e runtime com JRE 21 — e o cache de dependências do Maven fica em um volume do BuildKit, evitando rebaixar tudo a cada build.
+
+```bash
+docker compose up --build -d      # sobe banco + Adminer + aplicacao
+docker compose ps
+docker compose logs -f app
+docker compose down               # para tudo
+docker compose down -v            # para e apaga o volume do banco
+```
+
+---
+
 ## Testes
 
 ```bash
@@ -77,12 +114,111 @@ A aplicação sobe em **http://localhost:8080** (Tomcat, porta 8080).
 
 ---
 
-## Banco de dados (H2 em memória)
+## Banco de dados (PostgreSQL)
 
-- URL JDBC: gerada a cada execução (ex.: `jdbc:h2:mem:<uuid>`)
-- Console web: **http://localhost:8080/h2-console**
-  - JDBC URL, usuário `sa` e senha em branco (padrão)
+O banco roda em container, junto com o Adminer para inspeção:
 
-> Como o banco é **em memória**, os dados são perdidos ao reiniciar a aplicação. Para persistência real, basta adicionar uma dependência de banco (ex.: PostgreSQL/MySQL) e configurar em `application.properties`.
+```bash
+docker compose up -d
+```
+
+| Serviço | Porta | Credenciais |
+|---|---|---|
+| PostgreSQL 16 | `5432` | banco `chatbot`, usuário `postgres`, senha `postgres` |
+| Adminer | `8081` | Sistema `PostgreSQL`, Servidor `db` |
+
+A conexão é configurável por variáveis de ambiente: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` e `DB_PASSWORD` (padrões `localhost`, `5432`, `chatbot`, `postgres`, `postgres`).
+
+> Nos **testes** o banco é o **H2 em memória** (`jdbc:h2:mem:testdb`), então `.\mvnw.cmd test` não precisa de Docker.
 
 ---
+
+## Modelo de domínio
+
+```mermaid
+classDiagram
+    Cliente "1" --> "N" Conversa : possui
+    Conversa "1" --> "N" Mensagem : contém
+```
+
+| Entidade | Papel |
+|---|---|
+| `Cliente` | Usuária do atendimento; raiz do agregado. O CPF nunca é exposto por completo — apenas via `getCpfMascarado()` |
+| `Conversa` | Sessão de atendimento; controla o próprio ciclo de vida (`ATIVA`, `AGUARDANDO_ATENDIMENTO_HUMANO`, `EM_ATENDIMENTO_HUMANO`, `ENCERRADA`) e encerra por inatividade |
+| `Mensagem` | Imutável; criada apenas por `Conversa.registrarMensagem(...)` |
+
+Os construtores de `Conversa` e `Mensagem` são de pacote e as coleções são expostas como listas imutáveis — o agregado controla a criação dos filhos, impedindo registros órfãos.
+
+---
+
+## CORS
+
+O frontend roda em origem separada, então o CORS está configurado para `/api/**`.
+
+| Propriedade | Padrão | Variável de ambiente |
+|---|---|---|
+| `app.cors.allowed-origins` | `http://localhost:3000,http://localhost:5173,http://localhost:4173` | `CORS_ALLOWED_ORIGINS` |
+| `app.cors.allowed-methods` | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | `CORS_ALLOWED_METHODS` |
+| `app.cors.allowed-headers` | `Content-Type,Accept,Authorization,X-Trace-Id` | `CORS_ALLOWED_HEADERS` |
+| `app.cors.exposed-headers` | `X-Trace-Id` | `CORS_EXPOSED_HEADERS` |
+| `app.cors.max-age` | `3600` | `CORS_MAX_AGE` |
+| `app.cors.allow-credentials` | `false` | `CORS_ALLOW_CREDENTIALS` |
+
+Em ambientes publicados, defina `CORS_ALLOWED_ORIGINS` com o domínio do frontend — a variável de ambiente sobrescreve o padrão.
+
+---
+
+## Fluxo de trabalho (branches e CI)
+
+**Regra do repositório:** no máximo **duas branches** — a `main` e **uma** branch de trabalho que será mergeada. Não se acumulam branches.
+
+### Rotina
+
+```powershell
+# 1. Partir sempre da main atualizada
+git checkout main
+git pull
+
+# 2. Criar a unica branch de trabalho
+git checkout -b feat/minha-tarefa
+
+# 3. Trabalhar, commitar e enviar
+git add -A
+git commit -m "feat: descreve a mudanca"
+git push -u origin feat/minha-tarefa
+
+# 4. Depois do merge, limpar a branch local
+.\scripts\git-limpar.ps1
+```
+
+### O que o push dispara
+
+```mermaid
+flowchart LR
+    A[push da branch] --> B[PR aberta automaticamente]
+    B --> C[CI: Testes]
+    C --> D[CI: Build da imagem Docker]
+    D -->|verde| E[Merge na main]
+    D -->|vermelho| F[PR fica aberta]
+    E --> G[Branch de origem removida]
+    E --> H[Deploy na AWS]
+```
+
+| Workflow | Arquivo | Responsabilidade |
+|---|---|---|
+| **Abrir PR** | `.github/workflows/auto-pr.yml` | Cria a PR para a `main` a partir do push em qualquer branch; não duplica se já existir uma aberta |
+| **CI** | `.github/workflows/ci.yml` | Roda `Testes` e `Build da imagem Docker`; em PR, faz o merge com squash, remove a branch de origem e limpa branches antigas já mergeadas |
+
+- CI **verde** → merge automático na `main`, e o merge é o que dispara o deploy.
+- CI **vermelho** → a PR permanece aberta e nada chega na `main`.
+
+### Requisito no GitHub
+
+Para que a PR seja criada automaticamente, é preciso habilitar em
+**Settings → Actions → General → Workflow permissions**:
+
+- ✅ Read and write permissions
+- ✅ Allow GitHub Actions to create and approve pull requests
+
+> O segundo item é obrigatório: sem ele o workflow `Abrir PR` falha com
+> *"GitHub Actions is not permitted to create or approve pull requests"*.
