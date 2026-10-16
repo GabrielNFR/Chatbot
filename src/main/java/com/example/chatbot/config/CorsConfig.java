@@ -6,14 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * Configuração de CORS para permitir que o frontend (SPA em repositório/origem
- * separada) consuma a API deste backend.
- *
- * <p>Todos os parâmetros são externalizados em {@code application.properties}
- * (prefixo {@code app.cors.*}) e podem ser sobrescritos por variáveis de
- * ambiente em cada ambiente, sem necessidade de recompilar.
- */
 @Configuration
 @EnableConfigurationProperties(CorsProperties.class)
 @RequiredArgsConstructor
