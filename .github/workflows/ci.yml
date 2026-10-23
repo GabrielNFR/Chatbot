@@ -73,8 +73,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           gh pr create --repo "$REPO" --base main --head "$BRANCH" \
-            --title "$(git log -1 --pretty=%s)" \
-            --body "Merge automatico apos CI verde." 2>/dev/null || echo "PR ja existente."
+            --title "$(git log --reverse --format=%s "origin/main..HEAD" | head -1)" \
+            --body "$(git log --reverse --format='- %s' "origin/main..HEAD")" 2>/dev/null || echo "PR ja existente."
 
           mergeado=false
           for tentativa in 1 2 3 4 5 6; do
