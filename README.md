@@ -213,45 +213,60 @@ git pull
 # 2. Criar a unica branch de trabalho
 git checkout -b feat/minha-tarefa
 
-# 3. Trabalhar, commitar e enviar
+# 3. Trabalhar, commitar e enviar (o push dispara o pipeline)
 git add -A
 git commit -m "feat: descreve a mudanca"
 git push -u origin feat/minha-tarefa
 
-# 4. Depois do merge (o CI já apagou a branch remota)
+# 4. Depois do merge, apagar a branch local
+git fetch --prune
 git checkout main
 git pull
-git branch -d feat/minha-tarefa
+git diff main feat/minha-tarefa --stat    # precisa voltar VAZIO
+git branch -D feat/minha-tarefa
 ```
+
+> **Por que `-D` e não `-d`:** o merge é feito com *squash*, então o commit que
+> chega na `main` tem outro SHA e o Git não reconhece o ancestral — o `-d` se
+> recusa a apagar. Por isso a verificação com `git diff` vem **antes**:
+> **diff vazio = o conteúdo já está na `main`**, e o `-D` é seguro. Se o diff
+> listar qualquer arquivo, não apague: a branch tem trabalho inédito.
 
 ### O que o push dispara
 
+O pipeline roda em qualquer `push` fora da `main` (o workflow escuta `on: push`).
+
 ```mermaid
 flowchart LR
-    A[push da branch] --> B[PR aberta automaticamente]
-    B --> C[CI: Testes]
-    C --> D[CI: Build da imagem Docker]
-    D -->|verde| E[Merge na main]
-    D -->|vermelho| F[PR fica aberta]
-    E --> G[Branch de origem removida]
-    E --> H[Deploy na AWS]
+    A[git push na branch] --> B[CI: Testes]
+    B --> C[CI: Build da imagem Docker]
+    C -->|verde| D[Cria a PR]
+    D --> E[Merge squash na main]
+    E --> F[Apaga a branch remota]
+    C -->|vermelho| G[PR fica aberta]
 ```
 
-| Workflow | Arquivo | Responsabilidade |
-|---|---|---|
-| **Abrir PR** | `.github/workflows/auto-pr.yml` | Cria a PR para a `main` a partir do push em qualquer branch; não duplica se já existir uma aberta |
-| **CI** | `.github/workflows/ci.yml` | Roda `Testes` e `Build da imagem Docker`; em PR, faz o merge com squash, remove a branch de origem e limpa branches antigas já mergeadas |
+| Job | Responsabilidade |
+|---|---|
+| **Testes** | `./mvnw -B verify` com JDK 21 e cache do Maven |
+| **Build da imagem Docker** | Build da imagem sem push, com cache do GitHub Actions |
+| **Merge na main** (`publicar`) | Cria a PR, faz o merge com squash, apaga a branch de origem e limpa branches remotas já mergeadas |
 
 - CI **verde** → merge automático na `main`, e o merge é o que dispara o deploy.
 - CI **vermelho** → a PR permanece aberta e nada chega na `main`.
+- O job `publicar` é ignorado quando o push é na própria `main`
+  (`if: github.ref_name != 'main'`).
+
+> **Não pede aprovação manual:** o gatilho é o seu `push`, não um evento de PR
+> criado pelo bot — por isso nada fica preso em `action_required`.
 
 ### Requisito no GitHub
 
-Para que a PR seja criada automaticamente, é preciso habilitar em
+Para que o job `publicar` consiga criar a PR, é preciso habilitar em
 **Settings → Actions → General → Workflow permissions**:
 
 - ✅ Read and write permissions
 - ✅ Allow GitHub Actions to create and approve pull requests
 
-> O segundo item é obrigatório: sem ele o workflow `Abrir PR` falha com
+> O segundo item é obrigatório: sem ele o `gh pr create` falha com
 > *"GitHub Actions is not permitted to create or approve pull requests"*.
