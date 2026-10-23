@@ -71,7 +71,6 @@ src/test/java/com/example/chatbot/
 ├── config/CorsConfigTest.java        # Testes de preflight de CORS
 └── model/AtendimentoTest.java        # Testes dos fluxos de chatbot e atendimento
 
-scripts/git-limpar.ps1                # Limpeza de branches locais já mergeadas
 Dockerfile                            # Build multi-stage da imagem
 docker-compose.yml                    # PostgreSQL + Adminer + aplicação
 pom.xml / mvnw / mvnw.cmd             # Build Maven
@@ -219,8 +218,10 @@ git add -A
 git commit -m "feat: descreve a mudanca"
 git push -u origin feat/minha-tarefa
 
-# 4. Depois do merge, limpar a branch local
-.\scripts\git-limpar.ps1
+# 4. Depois do merge (o CI já apagou a branch remota)
+git checkout main
+git pull
+git branch -d feat/minha-tarefa
 ```
 
 ### O que o push dispara
