@@ -22,7 +22,10 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+# tzdata: a imagem alpine nao traz a base de fusos horarios. Sem ele, definir
+# TZ=America/Sao_Paulo nao tem efeito e o JVM grava as datas em UTC.
+RUN apk add --no-cache tzdata \
+    && addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
 COPY --from=builder /app/target/*.jar app.jar
