@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# Stack de producao minima: banco + backend + front, tudo na MESMA origem.
+#
+# O container `front` (Nginx) serve o bundle estatico e encaminha /api para o
+# Spring Boot. Como front e API respondem na mesma origem, nao existe CORS e
+# o VITE_API_URL fica vazio (URL relativa).
+#
+# Subir:   docker compose -f docker-compose.prod.yml up -d --build
+# Acessar: http://<ip-da-maquina>/
+#
+# O backend NAO publica porta no host: ele so e alcancavel pelo Nginx.
+# ---------------------------------------------------------------------------
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: chatbot-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chatbot
+      POSTGRES_USER: postgres
+      # Trocar dps
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatbot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: chatbot-back
+    restart: unless-stopped
+    environment:
+      # 'prod' aplica application-prod.properties (PORT, forward-headers, logs).
+      # 'dev' habilita o DevDataSeeder, que cria dados de exemplo quando o banco
+      # esta vazio. Para um banco sem dados ficticios, use apenas 'prod'.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod,dev}
+      # Sem tzdata na imagem o JVM nao resolve este fuso e cai para UTC.
+      TZ: America/Sao_Paulo
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: chatbot
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  front:
+    build: ../ChatbotFront
+    container_name: chatbot-front
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+
+volumes:
+  postgres_prod:
+    driver: local
