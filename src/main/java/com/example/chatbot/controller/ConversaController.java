@@ -1,15 +1,25 @@
 package com.example.chatbot.controller;
 
 import com.example.chatbot.dto.ConversaResumo;
+import com.example.chatbot.dto.MensagemResumo;
+import com.example.chatbot.dto.NovaConversaRequest;
+import com.example.chatbot.dto.NovaMensagemRequest;
 import com.example.chatbot.dto.PaginaResponse;
 import com.example.chatbot.service.ConversaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/conversas")
@@ -23,5 +33,23 @@ public class ConversaController {
             @PageableDefault(size = 20, sort = "ultimaInteracaoEm", direction = Sort.Direction.DESC)
             Pageable pageable) {
         return service.listar(pageable);
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public ConversaResumo criar(@RequestBody NovaConversaRequest request) {
+        return service.criarConversa(request.clienteId(), request.canal());
+    }
+
+    @GetMapping("/{id}/mensagens")
+    public List<MensagemResumo> listarMensagens(@PathVariable Long id) {
+        return service.listarMensagens(id);
+    }
+
+    @PostMapping("/{id}/mensagens")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MensagemResumo registrarMensagem(@PathVariable Long id,
+                                            @RequestBody NovaMensagemRequest request) {
+        return service.registrarMensagem(id, request.conteudo());
     }
 }
