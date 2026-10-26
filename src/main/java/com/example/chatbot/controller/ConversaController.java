@@ -30,7 +30,7 @@ public class ConversaController {
 
     @GetMapping
     public PaginaResponse<ConversaResumo> listar(
-            @PageableDefault(size = 20, sort = "ultimaInteracaoEm", direction = Sort.Direction.DESC)
+            @PageableDefault(size = 20, sort = {"ultimaInteracaoEm", "id"}, direction = Sort.Direction.DESC)
             Pageable pageable) {
         return service.listar(pageable);
     }
