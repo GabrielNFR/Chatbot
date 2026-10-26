@@ -34,6 +34,9 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # Perfil ativo. 'dev' habilita o DevDataSeeder (dados de exemplo).
+      # Em producao use SPRING_PROFILES_ACTIVE=prod, que nao carrega o seeder.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: chatbot
