@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 public record ConversaResumo(
         Long id,
-        String cliente,
+        ClienteResumo cliente,
         String canal,
         StatusConversa status,
         LocalDateTime iniciadaEm,
@@ -16,7 +16,7 @@ public record ConversaResumo(
     public static ConversaResumo de(Conversa conversa) {
         return new ConversaResumo(
                 conversa.getId(),
-                conversa.getCliente().getNome(),
+                ClienteResumo.de(conversa.getCliente()),
                 conversa.getCanal(),
                 conversa.getStatus(),
                 conversa.getIniciadaEm(),
