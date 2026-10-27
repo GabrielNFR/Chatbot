@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.function.Function;
 
 @Service
 @RequiredArgsConstructor
@@ -28,8 +29,8 @@ public class ConversaService {
 
     @Transactional(readOnly = true)
     public PaginaResponse<ConversaResumo> listar(Pageable pageable) {
-        Page<Conversa> pagina = conversas.findAll(pageable);
-        return PaginaResponse.de(pagina, ConversaResumo::de);
+        Page<ConversaResumo> pagina = conversas.listarResumos(pageable);
+        return PaginaResponse.de(pagina, Function.identity());
     }
 
     @Transactional(readOnly = true)
