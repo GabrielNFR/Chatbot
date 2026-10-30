@@ -19,8 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api/conversas")
 @RequiredArgsConstructor
@@ -42,8 +40,10 @@ public class ConversaController {
     }
 
     @GetMapping("/{id}/mensagens")
-    public List<MensagemResumo> listarMensagens(@PathVariable Long id) {
-        return service.listarMensagens(id);
+    public PaginaResponse<MensagemResumo> listarMensagens(
+            @PathVariable Long id,
+            @PageableDefault(size = 50) Pageable pageable) {
+        return service.listarMensagens(id, pageable);
     }
 
     @PostMapping("/{id}/mensagens")

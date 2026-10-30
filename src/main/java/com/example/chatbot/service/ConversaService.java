@@ -9,14 +9,19 @@ import com.example.chatbot.model.Mensagem;
 import com.example.chatbot.model.enums.RemetenteMensagem;
 import com.example.chatbot.repository.ClienteRepository;
 import com.example.chatbot.repository.ConversaRepository;
+import com.example.chatbot.repository.MensagemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
@@ -24,8 +29,11 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class ConversaService {
 
+    private static final int TAMANHO_MAXIMO_DA_PAGINA = 100;
+
     private final ConversaRepository conversas;
     private final ClienteRepository clientes;
+    private final MensagemRepository mensagens;
 
     @Transactional(readOnly = true)
     public PaginaResponse<ConversaResumo> listar(Pageable pageable) {
@@ -34,10 +42,28 @@ public class ConversaService {
     }
 
     @Transactional(readOnly = true)
-    public List<MensagemResumo> listarMensagens(Long conversaId) {
-        return buscar(conversaId).getMensagens().stream()
-                .map(MensagemResumo::de)
-                .toList();
+    public PaginaResponse<MensagemResumo> listarMensagens(Long conversaId, Pageable pageable) {
+        Pageable consulta = PageRequest.of(
+                pageable.getPageNumber(),
+                Math.min(pageable.getPageSize(), TAMANHO_MAXIMO_DA_PAGINA),
+                Sort.by(Sort.Order.desc("enviadaEm"), Sort.Order.desc("id")));
+
+        Page<MensagemResumo> pagina = mensagens.listarResumosPorConversa(conversaId, consulta);
+
+        if (pagina.getTotalElements() == 0 && !conversas.existsById(conversaId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Conversa nao encontrada: " + conversaId);
+        }
+
+        List<MensagemResumo> conteudo = new ArrayList<>(pagina.getContent());
+        Collections.reverse(conteudo);
+
+        return new PaginaResponse<>(
+                conteudo,
+                pagina.getNumber(),
+                pagina.getSize(),
+                pagina.getTotalElements(),
+                pagina.getTotalPages());
     }
 
     @Transactional
