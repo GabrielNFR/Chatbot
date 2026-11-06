@@ -1,6 +1,8 @@
 package com.example.chatbot.config;
 
 import com.example.chatbot.model.Cliente;
+import com.example.chatbot.model.Chatbot;
+import com.example.chatbot.repository.ChatbotRepository;
 import com.example.chatbot.model.Conversa;
 import com.example.chatbot.model.enums.RemetenteMensagem;
 import com.example.chatbot.repository.ClienteRepository;
@@ -23,9 +25,13 @@ import java.util.List;
 public class DevDataSeeder implements ApplicationRunner {
 
     private final ClienteRepository clientes;
+    private final ChatbotRepository chatbots;
 
     @Override
     public void run(ApplicationArguments args) {
+        if (chatbots.count() == 0) {
+            chatbots.save(new Chatbot("Assistente", null));
+        }
         if (clientes.count() > 0) {
             log.info("Seeder ignorado: o banco ja possui clientes cadastrados.");
             return;
@@ -68,7 +74,7 @@ public class DevDataSeeder implements ApplicationRunner {
                 "O chatbot não resolveu, quero falar com uma pessoa.");
         conversa.registrarMensagem(RemetenteMensagem.SISTEMA,
                 "Conversa encaminhada para a fila de atendimento humano.");
-        conversa.transferirParaAtendimentoHumano();
+        conversa.transferirParaAtendimentoHumano("Cliente solicitou falar com uma pessoa.");
 
         return rafael;
     }
