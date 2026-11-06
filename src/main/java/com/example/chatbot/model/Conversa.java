@@ -57,6 +57,9 @@ public class Conversa {
 
     private LocalDateTime encerradaEm;
 
+    @Column(length = 500)
+    private String motivoTransferencia;
+
     @OneToMany(mappedBy = "conversa", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("enviadaEm ASC")
     private List<Mensagem> mensagens = new ArrayList<>();
@@ -88,14 +91,31 @@ public class Conversa {
 
     public Mensagem registrarMensagem(RemetenteMensagem remetente, String conteudo) {
         exigirNaoEncerrada();
+        if (remetente == RemetenteMensagem.CHATBOT && !estaAtiva()) {
+            throw new IllegalStateException("O chatbot está suspenso durante o atendimento humano.");
+        }
         Mensagem mensagem = new Mensagem(this, remetente, conteudo);
         this.mensagens.add(mensagem);
         this.ultimaInteracaoEm = mensagem.getEnviadaEm();
         return mensagem;
     }
 
+    public String getMotivoTransferencia() {
+        return motivoTransferencia;
+    }
+
     public void transferirParaAtendimentoHumano() {
-        exigirNaoEncerrada();
+        transferirParaAtendimentoHumano("Encaminhamento para atendimento humano");
+    }
+
+    public void transferirParaAtendimentoHumano(String motivo) {
+        if (!estaAtiva()) {
+            throw new IllegalStateException("Somente conversas ativas podem entrar na fila.");
+        }
+        if (motivo == null || motivo.isBlank() || motivo.strip().length() > 500) {
+            throw new IllegalArgumentException("Informe um motivo de até 500 caracteres.");
+        }
+        this.motivoTransferencia = motivo.strip();
         this.status = StatusConversa.AGUARDANDO_ATENDIMENTO_HUMANO;
         this.ultimaInteracaoEm = LocalDateTime.now();
     }

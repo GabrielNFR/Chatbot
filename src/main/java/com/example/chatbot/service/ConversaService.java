@@ -4,6 +4,10 @@ import com.example.chatbot.dto.ConversaResumo;
 import com.example.chatbot.dto.MensagemResumo;
 import com.example.chatbot.dto.PaginaResponse;
 import com.example.chatbot.model.Cliente;
+import com.example.chatbot.model.Chatbot;
+import com.example.chatbot.model.enums.StatusConversa;
+import com.example.chatbot.repository.ChatbotRepository;
+import org.springframework.beans.factory.annotation.Value;
 import com.example.chatbot.model.Conversa;
 import com.example.chatbot.model.Mensagem;
 import com.example.chatbot.model.enums.RemetenteMensagem;
@@ -33,6 +37,10 @@ public class ConversaService {
 
     private final ConversaRepository conversas;
     private final ClienteRepository clientes;
+    private final ChatbotRepository chatbots;
+
+    @Value("${app.atendimento.horario:de segunda a sexta, das 8h às 18h}")
+    private String horarioAtendimento;
     private final MensagemRepository mensagens;
 
     @Transactional(readOnly = true)
@@ -77,7 +85,7 @@ public class ConversaService {
 
         try {
             Mensagem mensagem = conversa.registrarMensagem(RemetenteMensagem.CLIENTE, conteudo);
-            return MensagemResumo.de(mensagem);
+            return MensagemResumo.de(mensagens.save(mensagem));
         } catch (IllegalStateException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         }
@@ -95,13 +103,36 @@ public class ConversaService {
                         HttpStatus.NOT_FOUND, "Cliente nao encontrado: " + clienteId));
 
         String canalFinal = (canal == null || canal.isBlank()) ? "WEB" : canal;
-        Conversa conversa = conversas.save(cliente.iniciarConversa(canalFinal));
+        Chatbot chatbot = chatbots.findFirstByAtivoTrueOrderByIdAsc()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Nenhum chatbot ativo."));
+        Conversa conversa = conversas.save(chatbot.iniciarConversa(cliente, canalFinal));
 
         return ConversaResumo.de(conversa);
     }
 
+    @Transactional
+    public ConversaResumo transferirParaAtendente(Long conversaId, String motivo) {
+        Conversa conversa = buscar(conversaId);
+        try {
+            conversa.transferirParaAtendimentoHumano(motivo);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        }
+        conversa.registrarMensagem(RemetenteMensagem.SISTEMA,
+                "Sua conversa está na fila de atendimento humano. Nosso horário é " + horarioAtendimento + ".");
+        return ConversaResumo.de(conversa);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConversaResumo> listarFila() {
+        return conversas.findByStatusOrderByIniciadaEmAscIdAsc(StatusConversa.AGUARDANDO_ATENDIMENTO_HUMANO)
+                .stream().map(ConversaResumo::de).toList();
+    }
+
     private Conversa buscar(Long conversaId) {
-        return conversas.findById(conversaId)
+        return conversas.buscarParaAtualizar(conversaId)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Conversa nao encontrada: " + conversaId));
     }

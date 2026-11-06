@@ -6,6 +6,9 @@ import com.example.chatbot.dto.NovaConversaRequest;
 import com.example.chatbot.dto.NovaMensagemRequest;
 import com.example.chatbot.dto.PaginaResponse;
 import com.example.chatbot.service.ConversaService;
+import com.example.chatbot.dto.TransferenciaRequest;
+import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -37,6 +40,16 @@ public class ConversaController {
     @ResponseStatus(HttpStatus.CREATED)
     public ConversaResumo criar(@RequestBody NovaConversaRequest request) {
         return service.criarConversa(request.clienteId(), request.canal());
+    }
+
+    @GetMapping("/fila")
+    public List<ConversaResumo> listarFila() {
+        return service.listarFila();
+    }
+
+    @PostMapping("/{id}/transferencia")
+    public ConversaResumo transferir(@PathVariable Long id, @Valid @RequestBody TransferenciaRequest request) {
+        return service.transferirParaAtendente(id, request.motivo());
     }
 
     @GetMapping("/{id}/mensagens")
