@@ -54,6 +54,22 @@ public class ConversaService {
         Page<ConversaResumo> pagina = conversas.listarResumos(pageable);
         return PaginaResponse.de(pagina, Function.identity());
     }
+    @Transactional(readOnly = true)
+    public PaginaResponse<ConversaResumo> listarPorCliente(
+        Long clienteId,
+        Pageable pageable
+    ){
+        if (!clientes.existsById(clienteId)) {
+            throw new ResponseStatusException(
+                HttpStatus.NOT_FOUND, "Cliente nao encontrado: " + clienteId);
+            }
+
+        Page<ConversaResumo> pagina =
+            conversas.findByClienteIdOrderByUltimaInteracaoEmDesc(
+                    clienteId, pageable);
+
+        return PaginaResponse.de(pagina, Function.identity());
+    }
 
     @Transactional(readOnly = true)
     public PaginaResponse<MensagemResumo> listarMensagens(Long conversaId, Pageable pageable) {
@@ -148,6 +164,17 @@ public class ConversaService {
 
         Conversa conversa = conversas.save(chatbot.iniciarConversa(cliente, canalFinal));
 
+        String boasVindas = chatbot.getMensagemBoasVindas();
+
+        if (boasVindas != null && !boasVindas.isBlank()) {
+            Mensagem mensagemInicial = conversa.registrarMensagem(
+                    RemetenteMensagem.CHATBOT,
+                    boasVindas
+            );
+
+            mensagens.save(mensagemInicial);
+        }
+
         return ConversaResumo.de(conversa);
     }
 
@@ -163,10 +190,11 @@ public class ConversaService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
 
-        conversa.registrarMensagem(
+        Mensagem mensagemSistema = conversa.registrarMensagem(
                 RemetenteMensagem.SISTEMA,
                 "Sua conversa está na fila de atendimento humano. Nosso horário é "
                         + horarioAtendimento + ".");
+        mensagens.save(mensagemSistema);
 
         return ConversaResumo.de(conversa);
     }

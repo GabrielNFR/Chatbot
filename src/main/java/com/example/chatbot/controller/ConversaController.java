@@ -39,6 +39,14 @@ public class ConversaController {
         return service.listar(pageable);
     }
 
+    @GetMapping("/cliente/{clienteId}")
+    public PaginaResponse<ConversaResumo> listarPorCliente(
+            @PathVariable Long clienteId,
+            @PageableDefault(size = 20, sort = {"ultimaInteracaoEm", "id"}, direction = Sort.Direction.DESC)
+            Pageable pageable) {
+        return service.listarPorCliente(clienteId, pageable);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ConversaResumo criar(@RequestBody NovaConversaRequest request) {

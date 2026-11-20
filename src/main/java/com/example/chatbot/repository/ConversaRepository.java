@@ -31,4 +31,9 @@ public interface ConversaRepository extends JpaRepository<Conversa, Long> {
             """,
             countQuery = "select count(c) from Conversa c")
     Page<ConversaResumo> listarResumos(Pageable pageable);
+
+    Page<ConversaResumo> findByClienteIdOrderByUltimaInteracaoEmDesc(
+        Long clienteId,
+        Pageable pageable
+    );
 }
