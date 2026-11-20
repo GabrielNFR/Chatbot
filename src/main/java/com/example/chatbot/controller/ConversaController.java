@@ -1,12 +1,14 @@
 package com.example.chatbot.controller;
 
 import com.example.chatbot.dto.ConversaResumo;
+import com.example.chatbot.dto.MensagemAtendenteRequest;
 import com.example.chatbot.dto.MensagemResumo;
 import com.example.chatbot.dto.NovaConversaRequest;
 import com.example.chatbot.dto.NovaMensagemRequest;
 import com.example.chatbot.dto.PaginaResponse;
 import com.example.chatbot.service.ConversaService;
 import com.example.chatbot.dto.TransferenciaRequest;
+import com.example.chatbot.dto.AssumirAtendimentoRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
 
 @RestController
 @RequestMapping("/api/conversas")
@@ -47,6 +50,13 @@ public class ConversaController {
         return service.listarFila();
     }
 
+    @PostMapping("/{id}/assumir")
+    public ConversaResumo assumir(
+            @PathVariable Long id,
+            @Valid @RequestBody AssumirAtendimentoRequest request) {
+        return service.assumirAtendimento(id, request.atendenteId());
+    }
+
     @PostMapping("/{id}/transferencia")
     public ConversaResumo transferir(@PathVariable Long id, @Valid @RequestBody TransferenciaRequest request) {
         return service.transferirParaAtendente(id, request.motivo());
@@ -61,8 +71,18 @@ public class ConversaController {
 
     @PostMapping("/{id}/mensagens")
     @ResponseStatus(HttpStatus.CREATED)
-    public MensagemResumo registrarMensagem(@PathVariable Long id,
-                                            @RequestBody NovaMensagemRequest request) {
+    public MensagemResumo registrarMensagem(
+            @PathVariable Long id,
+            @Valid @RequestBody NovaMensagemRequest request) {
         return service.registrarMensagem(id, request.conteudo());
+    }
+
+    @PostMapping("/{id}/mensagens/atendente")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MensagemResumo registrarMensagemAtendente(
+            @PathVariable Long id,
+            @Valid @RequestBody MensagemAtendenteRequest request) {
+        return service.registrarMensagemAtendente(
+            id, request.atendenteId(), request.conteudo());
     }
 }

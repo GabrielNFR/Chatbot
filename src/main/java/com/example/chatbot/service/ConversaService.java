@@ -1,20 +1,25 @@
+
 package com.example.chatbot.service;
 
 import com.example.chatbot.dto.ConversaResumo;
 import com.example.chatbot.dto.MensagemResumo;
 import com.example.chatbot.dto.PaginaResponse;
-import com.example.chatbot.model.Cliente;
+import com.example.chatbot.model.Atendente;
+import com.example.chatbot.model.Atendimento;
 import com.example.chatbot.model.Chatbot;
-import com.example.chatbot.model.enums.StatusConversa;
-import com.example.chatbot.repository.ChatbotRepository;
-import org.springframework.beans.factory.annotation.Value;
+import com.example.chatbot.model.Cliente;
 import com.example.chatbot.model.Conversa;
 import com.example.chatbot.model.Mensagem;
 import com.example.chatbot.model.enums.RemetenteMensagem;
+import com.example.chatbot.model.enums.StatusAtendimento;
+import com.example.chatbot.model.enums.StatusConversa;
+import com.example.chatbot.repository.AtendenteRepository;
+import com.example.chatbot.repository.ChatbotRepository;
 import com.example.chatbot.repository.ClienteRepository;
 import com.example.chatbot.repository.ConversaRepository;
 import com.example.chatbot.repository.MensagemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -38,10 +43,11 @@ public class ConversaService {
     private final ConversaRepository conversas;
     private final ClienteRepository clientes;
     private final ChatbotRepository chatbots;
+    private final AtendenteRepository atendentes;
+    private final MensagemRepository mensagens;
 
     @Value("${app.atendimento.horario:de segunda a sexta, das 8h às 18h}")
     private String horarioAtendimento;
-    private final MensagemRepository mensagens;
 
     @Transactional(readOnly = true)
     public PaginaResponse<ConversaResumo> listar(Pageable pageable) {
@@ -92,6 +98,39 @@ public class ConversaService {
     }
 
     @Transactional
+    public MensagemResumo registrarMensagemAtendente(
+        Long conversaId,
+        Long atendenteId,
+        String conteudo) {
+
+    if (conteudo == null || conteudo.isBlank()) {
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST, "O conteudo da mensagem e obrigatorio.");
+    }
+
+    Conversa conversa = buscar(conversaId);
+
+    Atendimento atendimento = conversa.getAtendimento();
+
+    if (atendimento == null || !atendimento.getAtendente().getId().equals(atendenteId) || atendimento.getStatus() != StatusAtendimento.EM_ANDAMENTO) {
+        throw new ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "O atendente nao possui um atendimento em andamento nesta conversa.");
+    }
+
+    try {
+        Mensagem mensagem = conversa.registrarMensagem(
+                RemetenteMensagem.ATENDENTE, conteudo);
+
+        return MensagemResumo.de(mensagens.save(mensagem));
+
+    } catch (IllegalStateException e) {
+        throw new ResponseStatusException(
+                HttpStatus.CONFLICT, e.getMessage(), e);
+    }
+}
+
+    @Transactional
     public ConversaResumo criarConversa(Long clienteId, String canal) {
         if (clienteId == null) {
             throw new ResponseStatusException(
@@ -104,7 +143,9 @@ public class ConversaService {
 
         String canalFinal = (canal == null || canal.isBlank()) ? "WEB" : canal;
         Chatbot chatbot = chatbots.findFirstByAtivoTrueOrderByIdAsc()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Nenhum chatbot ativo."));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.CONFLICT, "Nenhum chatbot ativo."));
+
         Conversa conversa = conversas.save(chatbot.iniciarConversa(cliente, canalFinal));
 
         return ConversaResumo.de(conversa);
@@ -113,6 +154,7 @@ public class ConversaService {
     @Transactional
     public ConversaResumo transferirParaAtendente(Long conversaId, String motivo) {
         Conversa conversa = buscar(conversaId);
+
         try {
             conversa.transferirParaAtendimentoHumano(motivo);
         } catch (IllegalStateException e) {
@@ -120,15 +162,41 @@ public class ConversaService {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
         }
-        conversa.registrarMensagem(RemetenteMensagem.SISTEMA,
-                "Sua conversa está na fila de atendimento humano. Nosso horário é " + horarioAtendimento + ".");
+
+        conversa.registrarMensagem(
+                RemetenteMensagem.SISTEMA,
+                "Sua conversa está na fila de atendimento humano. Nosso horário é "
+                        + horarioAtendimento + ".");
+
         return ConversaResumo.de(conversa);
     }
 
     @Transactional(readOnly = true)
     public List<ConversaResumo> listarFila() {
-        return conversas.findByStatusOrderByIniciadaEmAscIdAsc(StatusConversa.AGUARDANDO_ATENDIMENTO_HUMANO)
-                .stream().map(ConversaResumo::de).toList();
+        return conversas.findByStatusOrderByIniciadaEmAscIdAsc(
+                        StatusConversa.AGUARDANDO_ATENDIMENTO_HUMANO)
+                .stream()
+                .map(ConversaResumo::de)
+                .toList();
+    }
+
+    @Transactional
+    public ConversaResumo assumirAtendimento(Long conversaId, Long atendenteId) {
+        Conversa conversa = buscar(conversaId);
+
+        Atendente atendente = atendentes.findById(atendenteId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Atendente nao encontrado: " + atendenteId));
+
+        try {
+            atendente.assumir(conversa);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
+        }
+
+        return ConversaResumo.de(conversa);
     }
 
     private Conversa buscar(Long conversaId) {
